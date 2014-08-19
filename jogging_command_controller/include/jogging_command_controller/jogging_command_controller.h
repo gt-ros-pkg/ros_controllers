@@ -1,6 +1,6 @@
 
-#ifndef UR_FORWARD_CMD_CONTROLLERS_H
-#define UR_FORWARD_CMD_CONTROLLERS_H
+#ifndef JOGGING_COMMAND_CONTROLLER_H
+#define JOGGING_COMMAND_CONTROLLER_H
 
 #include <ros/node_handle.h>
 #include <hardware_interface/joint_command_interface.h>
@@ -16,10 +16,14 @@
 #include <std_msgs/Empty.h>
 
 #include <joint_trajectory_controller/hardware_interface_adapter.h>
+#include <trajectory_interface/pos_vel_acc_state.h>
+#include <joint_trajectory_controller/joint_trajectory_controller.h>
+#include <joint_trajectory_controller/joint_trajectory_controller_impl.h>
 
 using hardware_interface::JointHandle;
 using trajectory_interface::PosVelAccState;
 using namespace joint_trajectory_controller::internal;
+using namespace XmlRpc;
 
 namespace jogging_command_controller
 {
@@ -28,7 +32,6 @@ template <class ParamType>
 std::vector<ParamType> getParamList(const XmlRpcValue::Type xml_rpc_val_type, 
                                     const ros::NodeHandle& nh, const std::string& param_name)
 {
-  using namespace XmlRpc;
   XmlRpcValue xml_array;
   if (!nh.getParam(param_name, xml_array))
   {
@@ -62,22 +65,33 @@ class JoggingCommandController :
 {
 public:
   JoggingCommandController() {}
-  ~JoggingCommandController() {sub_command_.shutdown();}
+  ~JoggingCommandController() 
+  {
+    for(std::vector<ros::Subscriber>::iterator it = command_subs_.begin(); 
+        it != command_subs_.end(); ++it) 
+      it->shutdown();
+  }
 
   bool init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh);
   void starting(const ros::Time& time);
   void update(const ros::Time& time, const ros::Duration& period);
 
 private:
+  typedef HardwareInterfaceAdapter<HardwareInterface, PosVelAccState<double> > HwIfaceAdapter;
+
+  void commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd);
   
-  ros::NodeHandle controller_nh_;
+  ros::NodeHandle ctrl_nh_;
   std::string name_;
 
-  PosVelAccState current_state_;
-  PosVelAccState desired_state_;
-  PosVelAccState state_error_;  
+  HwIfaceAdapter hw_iface_adapter_;   ///< Adapts desired state to HW interface.
+
+  PosVelAccState<double> current_state_;
+  PosVelAccState<double> desired_state_;
+  PosVelAccState<double> state_error_;  
 
   std::vector<hardware_interface::JointHandle> joints_;
+  std::vector<std::string> joint_names_;
   std::vector<double> lower_pos_limits_;
   std::vector<double> upper_pos_limits_;
   std::vector<double> velocity_limits_;
@@ -101,13 +115,13 @@ init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
 {
   double MAX_DOUBLE = std::numeric_limits<double>::max();
   // Cache controller node handle
-  controller_nh_ = controller_nh;
+  ctrl_nh_ = ctrl_nh;
 
   // Controller name
-  name_ = getLeafNamespace(controller_nh_);
+  name_ = getLeafNamespace(ctrl_nh_);
 
   heartbeat_timeout_ = 0.3;
-  controller_nh_.getParam("heartbeat_timeout", heartbeat_timeout_);
+  ctrl_nh_.getParam("heartbeat_timeout", heartbeat_timeout_);
   ROS_DEBUG_STREAM_NAMED(name_, "Commands timeout after " << heartbeat_timeout_ 
                                 << "sec without receiving identical command.");
 
@@ -125,8 +139,8 @@ init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
   assert(n_joints == urdf_joints.size());
 
   double default_acceleration = -1.0, default_deceleration = -1.0;
-  controller_nh_.getParam("acceleration", default_acceleration);
-  controller_nh_.getParam("deceleration", default_deceleration);
+  ctrl_nh_.getParam("acceleration", default_acceleration);
+  ctrl_nh_.getParam("deceleration", default_deceleration);
 
   // Initialize members
   joints_.resize(n_joints);
@@ -167,30 +181,30 @@ init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
     joint_nh.getParam("deceleration", jogging_deceleration_[i]);
 
     // grab limits from parameter first, then URDF
-    lower_pos_limits_[i] = (urdf_joints[i].limits) ? urdf_joints[i].limits.lower : -MAX_DOUBLE;
-    joint_nh.getParam("lower_pos_limit", lower_pos_limit_[i]);
-    upper_pos_limits_[i] = (urdf_joints[i].limits) ? urdf_joints[i].limits.upper : MAX_DOUBLE;
-    joint_nh.getParam("upper_pos_limit", upper_pos_limit_[i]);
-    velocity_limits_[i] = (urdf_joints[i].limits) ? urdf_joints[i].limits.velocity : MAX_DOUBLE;
-    joint_nh.getParam("velocity_limit",  velocity_limit_[i]);
+    lower_pos_limits_[i] = (urdf_joints[i]->limits) ? urdf_joints[i]->limits->lower : -MAX_DOUBLE;
+    joint_nh.getParam("lower_pos_limit", lower_pos_limits_[i]);
+    upper_pos_limits_[i] = (urdf_joints[i]->limits) ? urdf_joints[i]->limits->upper : MAX_DOUBLE;
+    joint_nh.getParam("upper_pos_limit", upper_pos_limits_[i]);
+    velocity_limits_[i] = (urdf_joints[i]->limits) ? urdf_joints[i]->limits->velocity : MAX_DOUBLE;
+    joint_nh.getParam("velocity_limit",  velocity_limits_[i]);
 
     command_subs_.push_back(ctrl_nh.subscribe<std_msgs::Float64>(joint_names_[i] + "/command", 1, 
-            boost::bind(boost::bind(&JoggingCommandController::commandCB, this, _1), i, _1)));
+            boost::bind(&JoggingCommandController<HardwareInterface>::commandCB, this, i, _1)));
   }
 
-  current_state_    = PosVelAccState(n_joints);
-  desired_state_    = PosVelAccState(n_joints);
-  state_error_      = PosVelAccState(n_joints);
+  current_state_    = PosVelAccState<double>(n_joints);
+  desired_state_    = PosVelAccState<double>(n_joints);
+  state_error_      = PosVelAccState<double>(n_joints);
 
   // Hardware interface adapter
-  hw_iface_adapter_.init(joints_, controller_nh_);
+  hw_iface_adapter_.init(joints_, ctrl_nh_);
 }
 
 template <class HardwareInterface>
-bool JoggingCommandController<HardwareInterface>::
-void commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
+void JoggingCommandController<HardwareInterface>::
+commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
 {
-  if(cmd.data == 0.0) {
+  if(cmd->data == 0.0) {
     // zero command means stop jogging
     stop_jogging_[joint_index] = true;
     return;
@@ -201,13 +215,13 @@ void commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
 
     // set jogging target velocity to command clipped to velocity limit
     jogging_commands_[joint_index] = 
-      std::min( std::max(cmd.data, -velocity_limits_[joint_index]), 
+      std::min( std::max(cmd->data, -velocity_limits_[joint_index]), 
                                     velocity_limits_[joint_index]);
     stop_jogging_[joint_index] = false;
 
     desired_state_.position[joint_index] = joints_[joint_index].getPosition();
     desired_state_.velocity[joint_index] = 0.0;
-    if(cmd.data > 0.0)
+    if(cmd->data > 0.0)
       desired_state_.acceleration[joint_index] = jogging_acceleration_[joint_index];
     else
       desired_state_.acceleration[joint_index] = -jogging_acceleration_[joint_index];
@@ -216,7 +230,7 @@ void commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
 
   } else {
 
-    if(jogging_commands_[joint_index] == cmd.data) {
+    if(jogging_commands_[joint_index] == cmd->data) {
       // we have a consistent heartbeat command, continue jogging
       if(!stop_jogging_[joint_index]) {
         heartbeat_updated_[joint_index] = true;
@@ -230,16 +244,16 @@ void commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
 
 
 template <class HardwareInterface>
-bool JoggingCommandController<HardwareInterface>::
-void starting(const ros::Time& time)
+void JoggingCommandController<HardwareInterface>::
+starting(const ros::Time& time)
 {
   // Hardware interface adapter
-  hw_iface_adapter_.starting(time_data.uptime);
+  hw_iface_adapter_.starting(time);
 }
 
 template <class HardwareInterface>
-bool JoggingCommandController<HardwareInterface>::
-void update(const ros::Time& time, const ros::Duration& period)
+void JoggingCommandController<HardwareInterface>::
+update(const ros::Time& time, const ros::Duration& period)
 {
   for (unsigned int i = 0; i < joints_.size(); ++i) {
     if(jogging_commands_[i] != 0.0) {

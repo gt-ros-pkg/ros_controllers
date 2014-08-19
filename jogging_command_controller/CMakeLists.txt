@@ -81,10 +81,9 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES jogging_command_controller
-#  CATKIN_DEPENDS controller_interface hardware_interface joint_trajectory_controller std_msgs
-#  DEPENDS system_lib
+  INCLUDE_DIRS include
+  LIBRARIES jogging_command_controller
+  CATKIN_DEPENDS controller_interface hardware_interface joint_trajectory_controller std_msgs
 )
 
 ###########
@@ -95,13 +94,18 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
-# add_library(jogging_command_controller
-#   src/${PROJECT_NAME}/jogging_command_controller.cpp
-# )
+add_library(jogging_command_controller
+  src/jogging_command_controller.cpp
+)
+
+target_link_libraries(jogging_command_controller
+  ${catkin_LIBRARIES}
+)
 
 ## Declare a cpp executable
 # add_executable(jogging_command_controller_node src/jogging_command_controller_node.cpp)
@@ -130,18 +134,20 @@ include_directories(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS jogging_command_controller jogging_command_controller_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(TARGETS jogging_command_controller 
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+)
+
+install(FILES ros_control_plugins.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
