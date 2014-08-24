@@ -1,0 +1,13 @@
+<library path="src">
+    <class name="JoggingControlGui" type="jogging_command_controller.jogging_gui.JoggingControlGui" 
+           base_class_type="rqt_gui_py::Plugin">
+    <description>
+      GUI to jog each of the robot's joints.
+    </description>
+    <qtgui>
+      <label>Jogging Control</label>
+      <icon type="file">images/ur_icon.png</icon>
+      <statustip>Move joints at constant speed</statustip>
+    </qtgui>
+  </class>
+</library>

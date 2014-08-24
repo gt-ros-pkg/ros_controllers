@@ -127,15 +127,24 @@ init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
 
   // List of controlled joints
   joint_names_ = getParamList<std::string>(XmlRpcValue::TypeString, ctrl_nh, "joints");
-  if (joint_names_.empty()) {return false;}
+  if (joint_names_.empty()) {
+    ROS_ERROR_NAMED(name_, "Could not find controller parameter 'joints'");
+    return false;
+  }
   const unsigned int n_joints = joint_names_.size();
 
   // URDF joints
   boost::shared_ptr<urdf::Model> urdf = getUrdf(root_nh, "robot_description");
-  if (!urdf) {return false;}
+  if (!urdf) {
+    ROS_ERROR_NAMED(name_, "Could not create URDF");
+    return false;
+  }
 
   std::vector<UrdfJointConstPtr> urdf_joints = getUrdfJoints(*urdf, joint_names_);
-  if (urdf_joints.empty()) {return false;}
+  if (urdf_joints.empty()) {
+    ROS_ERROR_NAMED(name_, "Could not find parameter joints in URDF");
+    return false;
+  }
   assert(n_joints == urdf_joints.size());
 
   double default_acceleration = -1.0, default_deceleration = -1.0;
@@ -190,6 +199,7 @@ init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
 
     command_subs_.push_back(ctrl_nh.subscribe<std_msgs::Float64>(joint_names_[i] + "/command", 1, 
             boost::bind(&JoggingCommandController<HardwareInterface>::commandCB, this, i, _1)));
+
   }
 
   current_state_    = PosVelAccState<double>(n_joints);
@@ -198,14 +208,21 @@ init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
 
   // Hardware interface adapter
   hw_iface_adapter_.init(joints_, ctrl_nh_);
+  return true;
 }
 
 template <class HardwareInterface>
 void JoggingCommandController<HardwareInterface>::
 commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
 {
+  if(!JoggingCommandController<HardwareInterface>::isRunning()) {
+    ROS_WARN_THROTTLE_NAMED(1.0, name_, "Jogging controller not running.");
+    return;
+  }
   if(cmd->data == 0.0) {
     // zero command means stop jogging
+    ROS_DEBUG_STREAM_NAMED(name_, "Stopping jogging on joint " << joint_names_[joint_index] << 
+                                  " with zero command.");
     stop_jogging_[joint_index] = true;
     return;
   }
@@ -228,6 +245,9 @@ commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
 
     heartbeat_updated_[joint_index] = true;
 
+    ROS_DEBUG_STREAM_NAMED(name_, "Starting jogging on joint " << joint_names_[joint_index] << 
+                                  " with velocity " << jogging_commands_[joint_index] <<
+                                  " (command was " << cmd->data << ").");
   } else {
 
     if(jogging_commands_[joint_index] == cmd->data) {
@@ -238,6 +258,9 @@ commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
     } else {
       // we have an inconsistent command, stop jogging
       stop_jogging_[joint_index] = true;
+      ROS_DEBUG_STREAM_NAMED(name_, "Stopping jogging on joint " << joint_names_[joint_index] << 
+                                    " because velocity was " << jogging_commands_[joint_index] <<
+                                    " but command was " << cmd->data << ".");
     }
   }
 }
@@ -255,28 +278,48 @@ template <class HardwareInterface>
 void JoggingCommandController<HardwareInterface>::
 update(const ros::Time& time, const ros::Duration& period)
 {
+  static int counter = 0;
   for (unsigned int i = 0; i < joints_.size(); ++i) {
     if(jogging_commands_[i] != 0.0) {
       // jogging activated
 
-      // check for heartbeat timeout
-      if(heartbeat_updated_[i])
-        heartbeat_last_time_[i] = time;
-      if((time - heartbeat_last_time_[i]).toSec() > heartbeat_timeout_)
-        stop_jogging_[i] = true;
+      // check for stopping conditions
+      if(!stop_jogging_[i]) {
+        // check for heartbeat timeout
+        if(heartbeat_updated_[i]) {
+          heartbeat_last_time_[i] = time;
+          heartbeat_updated_[i] = false;
+        }
+        if((time - heartbeat_last_time_[i]).toSec() > heartbeat_timeout_) {
+          ROS_WARN_STREAM_NAMED(name_, "Stopping jogging on joint " << joint_names_[i] << 
+                                       " because we haven't gotten an identical command in " << 
+                                       heartbeat_timeout_ << " seconds.");
+          stop_jogging_[i] = true;
+        }
 
-      // check for being close to joint limits
-      double time_to_stop = desired_state_.velocity[i] / jogging_deceleration_[i];
-      // dist_to_stop is always positive
-      double dist_to_stop = 0.5 * jogging_deceleration_[i] * time_to_stop * time_to_stop;
-      // if we're getting close to the place where full deceleration will stop the
-      // robot just short of the limits, then we go ahead and stop
-      if(desired_state_.velocity[i] > 0.0) {
-        if(joints_[i].getPosition() + 1.2*dist_to_stop > upper_pos_limits_[i])
-          stop_jogging_[i] = true;
-      } else {
-        if(joints_[i].getPosition() - 1.2*dist_to_stop < lower_pos_limits_[i])
-          stop_jogging_[i] = true;
+        // check for being close to joint limits
+        double time_to_stop = desired_state_.velocity[i] / jogging_deceleration_[i];
+        // dist_to_stop is always positive
+        double dist_to_stop = 0.5 * jogging_deceleration_[i] * time_to_stop * time_to_stop;
+        // if we're getting close to the place where full deceleration will stop the
+        // robot just short of the limits, then we go ahead and stop
+        if(desired_state_.velocity[i] > 0.0) {
+          if(joints_[i].getPosition() + 1.2*dist_to_stop > upper_pos_limits_[i]) {
+            ROS_WARN_STREAM_NAMED(name_, "Stopping jogging on joint " << joint_names_[i] << 
+                                         " the position " << joints_[i].getPosition() <<
+                                         " is near the upper joint limit " << upper_pos_limits_[i] <<
+                                         ".");
+            stop_jogging_[i] = true;
+          }
+        } else {
+          if(joints_[i].getPosition() - 1.2*dist_to_stop < lower_pos_limits_[i]) {
+            ROS_WARN_STREAM_NAMED(name_, "Stopping jogging on joint " << joint_names_[i] << 
+                                         " the position " << joints_[i].getPosition() <<
+                                         " is near the lower joint limit " << lower_pos_limits_[i] <<
+                                         ".");
+            stop_jogging_[i] = true;
+          }
+        }
       }
 
       if(stop_jogging_[i]) {
@@ -294,19 +337,24 @@ update(const ros::Time& time, const ros::Duration& period)
       if(!stop_jogging_[i]) {
         // jogging activated and not stopping
 
-        if(std::fabs(desired_state_.velocity[i]) >= std::fabs(jogging_commands_[i])) {
+        if(std::fabs(desired_state_.velocity[i]) > std::fabs(jogging_commands_[i])) {
           // reached jogging speed, cruise at this speed
           desired_state_.velocity[i] = jogging_commands_[i];
           desired_state_.acceleration[i] = 0.0;
+          ROS_DEBUG_STREAM_NAMED(name_, "Jogging on joint " << joint_names_[i] << 
+                                        " reached cruising speed.");
         }
       } else {
         // jogging activated but decelerating 
         
         if(desired_state_.velocity[i]*jogging_commands_[i] < 0.0) {
           // velocity has flipped signs, completely stop now
+          desired_state_.position[i] = joints_[i].getPosition();
           desired_state_.velocity[i] = 0.0;
           desired_state_.acceleration[i] = 0.0;
           jogging_commands_[i] = 0.0; // jogging command stopped
+          ROS_DEBUG_STREAM_NAMED(name_, "Jogging on joint " << joint_names_[i] << 
+                                        " completely stopped.");
         }
       }
 
@@ -326,11 +374,25 @@ update(const ros::Time& time, const ros::Duration& period)
     state_error_.position[i] = desired_state_.position[i] - current_state_.position[i];
     state_error_.velocity[i] = desired_state_.velocity[i] - current_state_.velocity[i];
     state_error_.acceleration[i] = 0.0;
+    // if(counter % 125 == 0) {
+    //   ROS_DEBUG_STREAM_NAMED(name_, "Joint " << i <<
+    //                                 ", Des.Pos " << desired_state_.position[i] <<
+    //                                 ", Des.Vel " << desired_state_.velocity[i] <<
+    //                                 ", Err.Pos " << state_error_.position[i] <<
+    //                                 ", Err.Vel " << state_error_.velocity[i] <<
+    //                                 ", stop_jogging_ " << stop_jogging_[i] <<
+    //                                 ", diff time " << (time - heartbeat_last_time_[i]).toSec() <<
+    //                                 ", heartbeat_updated_ " << heartbeat_updated_[i]);
+    // }
+  }
+  if(counter % 125 == 0) {
+    ROS_DEBUG_STREAM_NAMED(name_, "Period " << period.toSec());
   }
 
   // Hardware interface adapter: Generate and send commands
   hw_iface_adapter_.updateCommand(time, period,
                                   desired_state_, state_error_);
+  counter++;
 }
 
 }
