@@ -12,13 +12,6 @@ namespace position_controllers
           JoggingCommandController;
 }
 
-namespace velocity_controllers
-{
-  typedef jogging_command_controller::JoggingCommandController<
-                                               hardware_interface::VelocityJointInterface>
-          JoggingCommandController;
-}
-
 namespace effort_controllers
 {
   typedef jogging_command_controller::JoggingCommandController<
@@ -27,8 +20,6 @@ namespace effort_controllers
 }
 
 PLUGINLIB_EXPORT_CLASS(position_controllers::JoggingCommandController, 
-                       controller_interface::ControllerBase)
-PLUGINLIB_EXPORT_CLASS(velocity_controllers::JoggingCommandController, 
                        controller_interface::ControllerBase)
 PLUGINLIB_EXPORT_CLASS(effort_controllers::JoggingCommandController,   
                        controller_interface::ControllerBase)

@@ -2,6 +2,8 @@
 #ifndef JOGGING_COMMAND_CONTROLLER_H
 #define JOGGING_COMMAND_CONTROLLER_H
 
+#include <boost/thread.hpp>
+
 #include <ros/node_handle.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <controller_interface/controller.h>
@@ -83,6 +85,7 @@ private:
   
   ros::NodeHandle ctrl_nh_;
   std::string name_;
+  boost::mutex mutex_lock_;
 
   HwIfaceAdapter hw_iface_adapter_;   ///< Adapts desired state to HW interface.
 
@@ -215,6 +218,7 @@ template <class HardwareInterface>
 void JoggingCommandController<HardwareInterface>::
 commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd)
 {
+  boost::lock_guard<boost::mutex> lock(mutex_lock_);
   if(!JoggingCommandController<HardwareInterface>::isRunning()) {
     ROS_WARN_THROTTLE_NAMED(1.0, name_, "Jogging controller not running.");
     return;
@@ -279,6 +283,7 @@ void JoggingCommandController<HardwareInterface>::
 update(const ros::Time& time, const ros::Duration& period)
 {
   static int counter = 0;
+  boost::lock_guard<boost::mutex> lock(mutex_lock_);
   for (unsigned int i = 0; i < joints_.size(); ++i) {
     if(jogging_commands_[i] != 0.0) {
       // jogging activated
@@ -324,7 +329,7 @@ update(const ros::Time& time, const ros::Duration& period)
 
       if(stop_jogging_[i]) {
         // begin decelerating
-        if(desired_state_.velocity[i] > 0.0)
+        if(jogging_commands_[i] > 0.0)
           desired_state_.acceleration[i] = -jogging_deceleration_[i];
         else
           desired_state_.acceleration[i] = jogging_deceleration_[i];
@@ -347,7 +352,7 @@ update(const ros::Time& time, const ros::Duration& period)
       } else {
         // jogging activated but decelerating 
         
-        if(desired_state_.velocity[i]*jogging_commands_[i] < 0.0) {
+        if(desired_state_.velocity[i]*jogging_commands_[i] <= 0.0) {
           // velocity has flipped signs, completely stop now
           desired_state_.position[i] = joints_[i].getPosition();
           desired_state_.velocity[i] = 0.0;
@@ -374,16 +379,16 @@ update(const ros::Time& time, const ros::Duration& period)
     state_error_.position[i] = desired_state_.position[i] - current_state_.position[i];
     state_error_.velocity[i] = desired_state_.velocity[i] - current_state_.velocity[i];
     state_error_.acceleration[i] = 0.0;
-    // if(counter % 125 == 0) {
-    //   ROS_DEBUG_STREAM_NAMED(name_, "Joint " << i <<
-    //                                 ", Des.Pos " << desired_state_.position[i] <<
-    //                                 ", Des.Vel " << desired_state_.velocity[i] <<
-    //                                 ", Err.Pos " << state_error_.position[i] <<
-    //                                 ", Err.Vel " << state_error_.velocity[i] <<
-    //                                 ", stop_jogging_ " << stop_jogging_[i] <<
-    //                                 ", diff time " << (time - heartbeat_last_time_[i]).toSec() <<
-    //                                 ", heartbeat_updated_ " << heartbeat_updated_[i]);
-    // }
+    if(counter % 125 == 0) {
+      ROS_DEBUG_STREAM_NAMED(name_,  "Joint " << i <<
+                                     ", Des.Pos " << desired_state_.position[i] <<
+                                     ", Des.Vel " << desired_state_.velocity[i] <<
+                                     ", Err.Pos " << state_error_.position[i] <<
+                                     ", Err.Vel " << state_error_.velocity[i] <<
+                                     ", stop_jogging_ " << stop_jogging_[i] <<
+                                     ", diff time " << (time - heartbeat_last_time_[i]).toSec() <<
+                                     ", heartbeat_updated_ " << heartbeat_updated_[i]);
+    }
   }
   if(counter % 125 == 0) {
     ROS_DEBUG_STREAM_NAMED(name_, "Period " << period.toSec());
