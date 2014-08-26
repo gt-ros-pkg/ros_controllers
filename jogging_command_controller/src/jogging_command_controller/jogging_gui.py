@@ -69,26 +69,7 @@ class JoggingControlWidget(QtGui.QWidget):
         self._plugin = plugin
         self.setWindowTitle('Jogging Control GUI')
 
-        # interactive components
-        self.buttons      = []
-        self.speed_boxes  = []
-        self.joint_modes  = []
-        self.q_left_nums  = []
-        self.q_right_nums = []
-        self.q_sliders    = []
-
-        # internal state
-        self._joint_mode_text = None
-        self._q_pos           = None
-        self._q_order         = None
-        self._joint_names     = None
-        self._velocity_limits = None
-        self._joint_types     = None
-        self._limits_lower    = None
-        self._limits_upper    = None
-        self._jnt_cmd_pubs    = None
-        self._pub_timers      = None
-        self._joint_state_sub = None
+        self.clear_internal_state()
 
         # # setup IconHelper
         # import rospkg
@@ -152,6 +133,20 @@ class JoggingControlWidget(QtGui.QWidget):
         load_ctrl_button.clicked.connect(self.load_jog_ctrl)
         hlayout_top.addWidget(load_ctrl_button)
 
+        # # unload control button
+        # unload_ctrl_button = QtGui.QPushButton(self)
+        # unload_ctrl_button.setObjectName('unload_ctrl_button')
+        # button_size_policy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
+        # button_size_policy.setHorizontalStretch(0)
+        # button_size_policy.setVerticalStretch(0)
+        # button_size_policy.setHeightForWidth(unload_ctrl_button.sizePolicy().hasHeightForWidth())
+        # unload_ctrl_button.setSizePolicy(button_size_policy)
+        # unload_ctrl_button.setBaseSize(QtCore.QSize(30, 30))
+        # unload_ctrl_button.setIcon(QtGui.QIcon.fromTheme('cancel'))
+        # unload_ctrl_button.setIconSize(QtCore.QSize(20,20))
+        # unload_ctrl_button.clicked.connect(self.unload_jog_ctrl)
+        # hlayout_top.addWidget(unload_ctrl_button)
+
         ########################################################################
 
         # controller manager services
@@ -172,6 +167,28 @@ class JoggingControlWidget(QtGui.QWidget):
         #                                       self._diagnostics_cb)
         # self._joint_states_sub = rospy.Subscriber('joint_states', JointState, 
         #                                           self._joint_states_cb)
+
+    def clear_internal_state(self):
+        # interactive components
+        self.buttons      = []
+        self.speed_boxes  = []
+        # self.joint_modes  = []
+        self.q_left_nums  = []
+        self.q_right_nums = []
+        self.q_sliders    = []
+
+        # internal state
+        # self._joint_mode_text = None
+        self._q_pos           = None
+        self._q_order         = None
+        self._joint_names     = []
+        self._velocity_limits = None
+        self._joint_types     = None
+        self._limits_lower    = None
+        self._limits_upper    = None
+        self._jnt_cmd_pubs    = None
+        self._pub_timers      = None
+        self._joint_state_sub = None
 
     @QtCore.Slot()
     def _update_commmands(self):
@@ -277,19 +294,7 @@ class JoggingControlWidget(QtGui.QWidget):
                                    limits_lower, limits_upper):
 
         # first destroy any existing joint layouts
-        while True:
-            item = self.vlayout_joints.takeAt(0)
-            if item is None:
-                break
-            item_widget = item.widget()
-            del item_widget
-            del item
-        self.buttons      = []
-        self.speed_boxes  = []
-        self.joint_modes  = []
-        self.q_left_nums  = []
-        self.q_right_nums = []
-        self.q_sliders    = []
+        self.clear_joints_from_layout()
 
         # now add all the joint layouts 
         for jnt_idx, jnt_name in enumerate(joint_names):
@@ -353,31 +358,31 @@ class JoggingControlWidget(QtGui.QWidget):
 
             ############################################################################
 
-            vlayout3 = QtGui.QVBoxLayout()
-            vlayout3.setObjectName('vlayout3_%d' % jnt_idx)
+            # vlayout3 = QtGui.QVBoxLayout()
+            # vlayout3.setObjectName('vlayout3_%d' % jnt_idx)
 
-            state_label = QtGui.QLabel('State')
-            state_label.setObjectName('state_label_%d' % jnt_idx)
-            state_label.setAlignment(QtCore.Qt.AlignCenter)
-            vlayout3.addWidget(state_label)
+            # state_label = QtGui.QLabel('State')
+            # state_label.setObjectName('state_label_%d' % jnt_idx)
+            # state_label.setAlignment(QtCore.Qt.AlignCenter)
+            # vlayout3.addWidget(state_label)
 
-            joint_mode = QtGui.QTextBrowser(self)
-            joint_mode.setObjectName('q_state_%d' % jnt_idx)
-            size_policy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Fixed)
-            size_policy.setHorizontalStretch(0)
-            size_policy.setVerticalStretch(0)
-            size_policy.setHeightForWidth(joint_mode.sizePolicy().hasHeightForWidth())
-            joint_mode.setSizePolicy(size_policy)
-            joint_mode.setMinimumSize(QtCore.QSize(100, 31))
-            joint_mode.setMaximumSize(QtCore.QSize(180, 31))
-            joint_mode.setBaseSize(QtCore.QSize(100, 31))
-            joint_mode.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-            joint_mode.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-            joint_mode.setLineWrapMode(QtGui.QTextEdit.NoWrap)
-            joint_mode.setText('STALE')
-            vlayout3.addWidget(joint_mode)
+            # joint_mode = QtGui.QTextBrowser(self)
+            # joint_mode.setObjectName('q_state_%d' % jnt_idx)
+            # size_policy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Fixed)
+            # size_policy.setHorizontalStretch(0)
+            # size_policy.setVerticalStretch(0)
+            # size_policy.setHeightForWidth(joint_mode.sizePolicy().hasHeightForWidth())
+            # joint_mode.setSizePolicy(size_policy)
+            # joint_mode.setMinimumSize(QtCore.QSize(100, 31))
+            # joint_mode.setMaximumSize(QtCore.QSize(180, 31))
+            # joint_mode.setBaseSize(QtCore.QSize(100, 31))
+            # joint_mode.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+            # joint_mode.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+            # joint_mode.setLineWrapMode(QtGui.QTextEdit.NoWrap)
+            # joint_mode.setText('STALE')
+            # vlayout3.addWidget(joint_mode)
 
-            hlayout.addLayout(vlayout3)
+            # hlayout.addLayout(vlayout3)
 
             ############################################################################
 
@@ -443,9 +448,9 @@ class JoggingControlWidget(QtGui.QWidget):
             q_slider.setMinimum(int(limits_lower[jnt_idx]*1000.0))
             q_slider.setMaximum(int(limits_upper[jnt_idx]*1000.0))
             if joint_types[jnt_idx] == 'prismatic':
-                q_slider.setTickInterval(0.25)
+                q_slider.setTickInterval(int(0.25*1000.0))
             else:
-                q_slider.setTickInterval(np.pi/4.0)
+                q_slider.setTickInterval(int(np.pi/4.0*1000.0))
             q_slider.setValue(0)
             q_slider.setEnabled(False)
             q_slider.setOrientation(QtCore.Qt.Horizontal)
@@ -460,7 +465,7 @@ class JoggingControlWidget(QtGui.QWidget):
             # collect the updatable components
             self.buttons.append(cur_buttons)
             self.speed_boxes.append(speed_box)
-            self.joint_modes.append(joint_mode)
+            # self.joint_modes.append(joint_mode)
             self.q_left_nums.append(q_left_num)
             self.q_right_nums.append(q_right_num)
             self.q_sliders.append(q_slider)
@@ -474,6 +479,21 @@ class JoggingControlWidget(QtGui.QWidget):
         self.state_changed.connect(self._update_state)
         self.start_moving.connect(self.start_moving_call)
         self.stop_moving.connect(self.stop_moving_call)
+
+    def clear_joints_from_layout(self):
+        if self._joint_state_sub is not None:
+            self._joint_state_sub.unregister()
+            self._joint_state_sub = None
+
+        while True:
+            item = self.vlayout_joints.takeAt(0)
+            if item is None:
+                break
+            item_widget = item.widget()
+            del item_widget
+            del item
+
+        self.clear_internal_state()
 
     def load_jog_ctrl(self):
         ctrlman_ns = self.cm_namespace_combo.currentText()
@@ -537,7 +557,7 @@ class JoggingControlWidget(QtGui.QWidget):
         self._joint_state_sub = rospy.Subscriber(self.ctrlman_ns_cur + 'joint_states', JointState, 
                                                   self._joint_states_cb)
 
-        self._joint_mode_text = ['STALE']*len(joint_names)
+        # self._joint_mode_text = ['STALE']*len(joint_names)
         self._q_pos           = [0.0]*len(joint_names)
         self._q_order         = None
         self._joint_names     = joint_names
@@ -548,16 +568,19 @@ class JoggingControlWidget(QtGui.QWidget):
         self._jnt_cmd_pubs    = jnt_cmd_pubs
         self._pub_timers      = [None]*len(joint_names)
 
+    def unload_jog_ctrl(self):
+        self.clear_joints_from_layout()
+
     def _update_state(self):
         for i, jnt_name in enumerate(self._joint_names):
-            self.joint_modes[i].setText(self._joint_mode_text[i])
+            # self.joint_modes[i].setText(self._joint_mode_text[i])
             self.q_left_nums[i].setText('%.4f' % self._q_pos[i])
             if self._joint_types[i] == 'prismatic':
                 q_right = self._q_pos[i] / METERS_PER_FOOT
             else:
                 q_right = np.rad2deg(self._q_pos[i])
             self.q_right_nums[i].setText('%.2f' % q_right)
-            self.q_sliders[i].setValue(int(q_right/1000.0))
+            self.q_sliders[i].setValue(int(self._q_pos[i] * 1000.0))
 
     def _start_move(self, jnt_idx, direction):
         velocity = self.speed_boxes[jnt_idx].value()
@@ -580,17 +603,17 @@ class JoggingControlWidget(QtGui.QWidget):
         self._pub_timers[jnt_idx] = None
         self._jnt_cmd_pubs[jnt_idx].publish(Float64(0.0))
 
-    def _diagnostics_cb(self, msg):
-        if rospy.is_shutdown():
-            return
-        for status in msg.status:
-            if "UR arm joint" in status.name:
-                joint_mode = status.values[0].value
-                for i, jnt_name in enumerate(JOINT_SHORT_NAMES):
-                    if jnt_name in status.name:
-                        self._joint_mode_text[i] = joint_mode
-                        break
-        self.state_changed.emit()
+    # def _diagnostics_cb(self, msg):
+    #     if rospy.is_shutdown():
+    #         return
+    #     for status in msg.status:
+    #         if "UR arm joint" in status.name:
+    #             joint_mode = status.values[0].value
+    #             for i, jnt_name in enumerate(JOINT_SHORT_NAMES):
+    #                 if jnt_name in status.name:
+    #                     self._joint_mode_text[i] = joint_mode
+    #                     break
+    #     self.state_changed.emit()
 
     def _joint_states_cb(self, msg):
         if rospy.is_shutdown():
@@ -606,5 +629,6 @@ class JoggingControlWidget(QtGui.QWidget):
 
     def shutdown_plugin(self):
         # self._diag_agg_sub.unregister()
-        self._joint_states_sub.unregister()
+        if self._joint_state_sub is not None:
+            self._joint_state_sub.unregister()
         self._timer_update_commands.stop()
