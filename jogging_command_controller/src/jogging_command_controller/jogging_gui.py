@@ -36,6 +36,7 @@ ICON_NAMES = [['rotate_y_pos_on.png'], ['rotate_y_neg_on.png'],
 BUTTON_ICONS = [(2,3), (0,1), (0,1), (0,1), (2,3), (0,1)]
 VEL_MULTS = [-1.0, 1.0] 
 MONITOR_RATE = 1000./100.
+METERS_PER_FOOT = 0.3048
 
 class JoggingControlGui(Plugin):
 
