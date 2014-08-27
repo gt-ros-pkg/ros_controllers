@@ -98,6 +98,8 @@ else()
                               include/trajectory_interface/quintic_spline_segment.h
                               include/trajectory_interface/pos_vel_acc_state.h)
 
+  target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+
   add_library(vel_fwd_joint_trajectory_controller src/vel_fwd_joint_traj_ctrl.cpp
                               include/joint_trajectory_controller/vel_fwd_hw_iface_adapter.h
                               include/joint_trajectory_controller/hardware_interface_adapter.h
@@ -110,6 +112,8 @@ else()
                               include/trajectory_interface/trajectory_interface.h
                               include/trajectory_interface/quintic_spline_segment.h
                               include/trajectory_interface/pos_vel_acc_state.h)
+
+  target_link_libraries(vel_fwd_joint_trajectory_controller ${catkin_LIBRARIES})
 
   add_library(vel_pid_joint_trajectory_controller src/vel_pid_joint_traj_ctrl.cpp
                               include/joint_trajectory_controller/vel_pid_hw_iface_adapter.h
@@ -124,7 +128,7 @@ else()
                               include/trajectory_interface/quintic_spline_segment.h
                               include/trajectory_interface/pos_vel_acc_state.h)
 
-  target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+  target_link_libraries(vel_pid_joint_trajectory_controller ${catkin_LIBRARIES})
 
   if(CATKIN_ENABLE_TESTING)
     find_package(rostest) 
@@ -164,7 +168,8 @@ else()
   install(DIRECTORY include/${PROJECT_NAME}/
     DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 
-  install(TARGETS ${PROJECT_NAME}
+  install(TARGETS ${PROJECT_NAME} vel_fwd_joint_trajectory_controller 
+                  vel_pid_joint_trajectory_controller
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
