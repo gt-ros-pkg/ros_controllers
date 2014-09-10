@@ -39,9 +39,10 @@ namespace position_controllers
    * \brief Joint trajectory controller that represents trajectory segments as <b>quintic splines</b> and sends
    * commands to a \b position interface.
    */
-  typedef joint_trajectory_controller::JointTrajectoryController<trajectory_interface::QuinticSplineSegment<double>,
-                                                                 hardware_interface::PositionJointInterface>
-          JointTrajectoryController;
+  typedef trajectory_interface::QuinticSplineSegment<double> SegmentImpl;
+  typedef typename joint_trajectory_controller::JointTrajectorySegment<SegmentImpl>::State State;
+  typedef HardwareInterfaceAdapter<hardware_interface::PositionJointInterface, State> HwIfaceAdapter;
+  typedef joint_trajectory_controller::JointTrajectoryController<SegmentImpl, HwIfaceAdapter> JointTrajectoryController;
 }
 
 namespace effort_controllers
@@ -50,9 +51,10 @@ namespace effort_controllers
    * \brief Joint trajectory controller that represents trajectory segments as <b>quintic splines</b> and sends
    * commands to an \b effort interface.
    */
-  typedef joint_trajectory_controller::JointTrajectoryController<trajectory_interface::QuinticSplineSegment<double>,
-                                                                 hardware_interface::EffortJointInterface>
-          JointTrajectoryController;
+  typedef trajectory_interface::QuinticSplineSegment<double> SegmentImpl;
+  typedef typename joint_trajectory_controller::JointTrajectorySegment<SegmentImpl>::State State;
+  typedef HardwareInterfaceAdapter<hardware_interface::EffortJointInterface, State> HwIfaceAdapter;
+  typedef joint_trajectory_controller::JointTrajectoryController<SegmentImpl, HwIfaceAdapter> JointTrajectoryController;
 }
 
 PLUGINLIB_EXPORT_CLASS(position_controllers::JointTrajectoryController, controller_interface::ControllerBase)

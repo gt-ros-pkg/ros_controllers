@@ -121,8 +121,8 @@ namespace joint_trajectory_controller
  * \tparam HardwareInterface Controller hardware interface. Currently \p hardware_interface::PositionJointInterface and
  * \p hardware_interface::EffortJointInterface are supported out-of-the-box.
  */
-template <class SegmentImpl, class HardwareInterface>
-class JointTrajectoryController : public controller_interface::Controller<HardwareInterface>
+template <class SegmentImpl, class HwIfaceAdapter>
+class JointTrajectoryController : public controller_interface::Controller<typename HwIfaceAdapter::HwIface>
 {
 public:
 
@@ -130,7 +130,7 @@ public:
 
   /** \name Non Real-Time Safe Functions
    *\{*/
-  bool init(HardwareInterface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
+  bool init(typename HwIfaceAdapter::HwIface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
   /*\}*/
 
   /** \name Real-Time Safe Functions
@@ -169,8 +169,8 @@ private:
   typedef boost::shared_ptr<Trajectory> TrajectoryPtr;
   typedef realtime_tools::RealtimeBox<TrajectoryPtr> TrajectoryBox;
   typedef typename Segment::Scalar Scalar;
+  typedef typename HwIfaceAdapter::HwIface HardwareInterface;
 
-  typedef HardwareInterfaceAdapter<HardwareInterface, typename Segment::State> HwIfaceAdapter;
   typedef typename HardwareInterface::ResourceHandleType JointHandle;
 
   bool                      verbose_;            ///< Hard coded verbose flag to help in debugging

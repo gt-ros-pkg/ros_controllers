@@ -129,8 +129,8 @@ std::string getLeafNamespace(const ros::NodeHandle& nh)
 
 } // namespace
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 starting(const ros::Time& time)
 {
   // Update time data
@@ -149,23 +149,23 @@ starting(const ros::Time& time)
   hw_iface_adapter_.starting(time_data.uptime);
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 stopping(const ros::Time& time)
 {
   preemptActiveGoal();
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 trajectoryCommandCB(const JointTrajectoryConstPtr& msg)
 {
   const bool update_ok = updateTrajectoryCommand(msg, RealtimeGoalHandlePtr());
   if (update_ok) {preemptActiveGoal();}
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 preemptActiveGoal()
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -179,8 +179,8 @@ preemptActiveGoal()
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 checkPathTolerances(const typename Segment::State& state_error,
                     const Segment&                 segment)
 {
@@ -195,8 +195,8 @@ checkPathTolerances(const typename Segment::State& state_error,
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-inline void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 checkGoalTolerances(const typename Segment::State& state_error,
                     const Segment&                 segment)
 {
@@ -233,15 +233,15 @@ checkGoalTolerances(const typename Segment::State& state_error,
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 JointTrajectoryController()
   : verbose_(false), // Set to true during debugging
     hold_trajectory_ptr_(new Trajectory)
 {}
 
-template <class SegmentImpl, class HardwareInterface>
-bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInterface* hw,
+template <class SegmentImpl, class HwIfaceAdapter>
+bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::init(typename HwIfaceAdapter::HwIface* hw,
                                                                      ros::NodeHandle&   root_nh,
                                                                      ros::NodeHandle&   controller_nh)
 {
@@ -369,8 +369,8 @@ bool JointTrajectoryController<SegmentImpl, HardwareInterface>::init(HardwareInt
   return true;
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 update(const ros::Time& time, const ros::Duration& period)
 {
   // Get currently followed trajectory
@@ -445,8 +445,8 @@ update(const ros::Time& time, const ros::Duration& period)
   publishState(time_data.uptime);
 }
 
-template <class SegmentImpl, class HardwareInterface>
-bool JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePtr gh)
 {
   typedef InitJointTrajectoryOptions<Trajectory> Options;
@@ -522,8 +522,8 @@ updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePt
   return true;
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 goalCB(GoalHandle gh)
 {
   ROS_DEBUG_STREAM_NAMED(name_,"Recieved new action goal");
@@ -578,8 +578,8 @@ goalCB(GoalHandle gh)
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 cancelCB(GoalHandle gh)
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -602,8 +602,8 @@ cancelCB(GoalHandle gh)
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-bool JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
                   control_msgs::QueryTrajectoryState::Response& resp)
 {
@@ -641,8 +641,8 @@ queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
   return true;
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 publishState(const ros::Time& time)
 {
   // Check if it's time to publish
@@ -666,8 +666,8 @@ publishState(const ros::Time& time)
   }
 }
 
-template <class SegmentImpl, class HardwareInterface>
-void JointTrajectoryController<SegmentImpl, HardwareInterface>::
+template <class SegmentImpl, class HwIfaceAdapter>
+void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 setHoldPosition(const ros::Time& time)
 {
   // Settle position in a fixed time. We do the following:

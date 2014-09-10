@@ -79,6 +79,7 @@ template <class State>
 class HardwareInterfaceAdapter<hardware_interface::PositionJointInterface, State>
 {
 public:
+  typedef hardware_interface::PositionJointInterface HwIface;
   HardwareInterfaceAdapter() : joint_handles_ptr_(0) {}
 
   bool init(std::vector<hardware_interface::JointHandle>& joint_handles, ros::NodeHandle& controller_nh)
@@ -136,6 +137,7 @@ template <class State>
 class HardwareInterfaceAdapter<hardware_interface::EffortJointInterface, State>
 {
 public:
+  typedef hardware_interface::EffortJointInterface HwIface;
   HardwareInterfaceAdapter() : joint_handles_ptr_(0) {}
 
   bool init(std::vector<hardware_interface::JointHandle>& joint_handles, ros::NodeHandle& controller_nh)
