@@ -64,6 +64,7 @@
 // ros_controls
 #include <realtime_tools/realtime_server_goal_handle.h>
 #include <controller_interface/controller.h>
+#include <controller_interface/multi_controller.h>
 #include <hardware_interface/joint_command_interface.h>
 #include <hardware_interface/internal/demangle_symbol.h>
 
@@ -73,6 +74,8 @@
 #include <joint_trajectory_controller/joint_trajectory_segment.h>
 #include <joint_trajectory_controller/init_joint_trajectory.h>
 #include <joint_trajectory_controller/hardware_interface_adapter.h>
+
+using hardware_interface::JointStateHandle;
 
 namespace joint_trajectory_controller
 {
@@ -121,17 +124,13 @@ namespace joint_trajectory_controller
  * \tparam HardwareInterface Controller hardware interface. Currently \p hardware_interface::PositionJointInterface and
  * \p hardware_interface::EffortJointInterface are supported out-of-the-box.
  */
-template <class SegmentImpl, class HwIfaceAdapter>
-class JointTrajectoryController : public controller_interface::Controller<typename HwIfaceAdapter::HwIface>
+template <class SegmentImpl, class HwIfaceAdapter, 
+          class Controller = controller_interface::Controller<typename HwIfaceAdapter::HwIface> >
+class JointTrajectoryControllerBase : public Controller
 {
 public:
 
-  JointTrajectoryController();
-
-  /** \name Non Real-Time Safe Functions
-   *\{*/
-  bool init(typename HwIfaceAdapter::HwIface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
-  /*\}*/
+  JointTrajectoryControllerBase();
 
   /** \name Real-Time Safe Functions
    *\{*/
@@ -144,7 +143,9 @@ public:
   void update(const ros::Time& time, const ros::Duration& period);
   /*\}*/
 
-private:
+protected:
+
+  bool initInternal(ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
 
   struct TimeData
   {
@@ -169,19 +170,16 @@ private:
   typedef boost::shared_ptr<Trajectory> TrajectoryPtr;
   typedef realtime_tools::RealtimeBox<TrajectoryPtr> TrajectoryBox;
   typedef typename Segment::Scalar Scalar;
-  typedef typename HwIfaceAdapter::HwIface HardwareInterface;
 
-  typedef typename HardwareInterface::ResourceHandleType JointHandle;
+  bool                           verbose_;            ///< Hard coded verbose flag to help in debugging
+  std::string                    name_;               ///< Controller name.
+  std::vector<JointStateHandle>  joint_states_;       ///< Handles to controlled joints' states.
+  std::vector<bool>              angle_wraparound_;   ///< Whether controlled joints wrap around or not.
+  std::vector<std::string>       joint_names_;        ///< Controlled joint names.
+  SegmentTolerances<Scalar>      default_tolerances_; ///< Default trajectory segment tolerances.
+  HwIfaceAdapter                 hw_iface_adapter_;   ///< Adapts desired trajectory state to HW interface.
 
-  bool                      verbose_;            ///< Hard coded verbose flag to help in debugging
-  std::string               name_;               ///< Controller name.
-  std::vector<JointHandle>  joints_;             ///< Handles to controlled joints.
-  std::vector<bool>         angle_wraparound_;   ///< Whether controlled joints wrap around or not.
-  std::vector<std::string>  joint_names_;        ///< Controlled joint names.
-  SegmentTolerances<Scalar> default_tolerances_; ///< Default trajectory segment tolerances.
-  HwIfaceAdapter            hw_iface_adapter_;   ///< Adapts desired trajectory state to HW interface.
-
-  RealtimeGoalHandlePtr     rt_active_goal_;     ///< Currently active action goal, if any.
+  RealtimeGoalHandlePtr          rt_active_goal_;     ///< Currently active action goal, if any.
 
   /**
    * Thread-safe container with a smart pointer to trajectory currently being followed.
@@ -267,6 +265,42 @@ private:
   void checkGoalTolerances(const typename Segment::State& state_error,
                            const Segment&                 segment);
 
+};
+
+template <class SegmentImpl, class HwIfaceAdapter>
+class JointTrajectoryController
+  : public JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, 
+                                controller_interface::Controller<typename HwIfaceAdapter::HwIface> >
+{
+public:
+  typedef typename HwIfaceAdapter::HwIface HardwareInterface;
+  typedef typename HardwareInterface::ResourceHandleType JointHandle;
+
+  JointTrajectoryController();
+  bool init(HardwareInterface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
+protected:
+  std::vector<JointHandle> joints_;
+};
+
+template <class SegmentImpl, class HwIfaceAdapter>
+class JointTrajectoryController2
+  : public JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, 
+        controller_interface::Controller2<typename HwIfaceAdapter::HwIface1, 
+                                          typename HwIfaceAdapter::HwIface2> >
+{
+public:
+  typedef typename HwIfaceAdapter::HwIface1 HardwareInterface1;
+  typedef typename HwIfaceAdapter::HwIface2 HardwareInterface2;
+  typedef typename HardwareInterface1::ResourceHandleType JointHandle1;
+  typedef typename HardwareInterface2::ResourceHandleType JointHandle2;
+
+  JointTrajectoryController2();
+  bool init(HardwareInterface1* hw1, HardwareInterface2* hw2, 
+            ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
+protected:
+  std::vector<std::string> joint_interfaces_;
+  std::vector<JointHandle1> joints1_;
+  std::vector<JointHandle2> joints2_;
 };
 
 } // namespace

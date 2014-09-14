@@ -10,16 +10,6 @@
     </description>
   </class>
 
-  <class name="velocity_controllers/JoggingCommandController"
-         type="velocity_controllers::JoggingCommandController"
-         base_class_type="controller_interface::ControllerBase">
-    <description>
-      The JoggingCommandController allows individual joints to be jogged at specified velocities,
-      following a trapezoidal trajectory.
-      This variant uses a velocity control interface.
-    </description>
-  </class>
-
   <class name="effort_controllers/JoggingCommandController"
          type="effort_controllers::JoggingCommandController"
          base_class_type="controller_interface::ControllerBase">
@@ -30,9 +20,6 @@
     </description>
   </class>
 
-</library>
-
-<library path="lib/libvel_fwd_jogging_cmd_ctrl">
   <class name="vel_fwd_controllers/JoggingCommandController"
          type="vel_fwd_controllers::JoggingCommandController"
          base_class_type="controller_interface::ControllerBase">
@@ -42,9 +29,7 @@
       This variant uses a velocity forwarding control interface.
     </description>
   </class>
-</library>
 
-<library path="lib/libvel_pid_jogging_cmd_ctrl">
   <class name="vel_pid_controllers/JoggingCommandController"
          type="vel_pid_controllers::JoggingCommandController"
          base_class_type="controller_interface::ControllerBase">

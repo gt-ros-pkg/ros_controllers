@@ -41,7 +41,7 @@ namespace position_controllers
    */
   typedef trajectory_interface::QuinticSplineSegment<double> SegmentImpl;
   typedef typename joint_trajectory_controller::JointTrajectorySegment<SegmentImpl>::State State;
-  typedef HardwareInterfaceAdapter<hardware_interface::PositionJointInterface, State> HwIfaceAdapter;
+  typedef PositionHardwareInterfaceAdapter<State> HwIfaceAdapter;
   typedef joint_trajectory_controller::JointTrajectoryController<SegmentImpl, HwIfaceAdapter> JointTrajectoryController;
 }
 
@@ -53,9 +53,35 @@ namespace effort_controllers
    */
   typedef trajectory_interface::QuinticSplineSegment<double> SegmentImpl;
   typedef typename joint_trajectory_controller::JointTrajectorySegment<SegmentImpl>::State State;
-  typedef HardwareInterfaceAdapter<hardware_interface::EffortJointInterface, State> HwIfaceAdapter;
+  typedef EffortHardwareInterfaceAdapter<State> HwIfaceAdapter;
+  typedef joint_trajectory_controller::JointTrajectoryController<SegmentImpl, HwIfaceAdapter> JointTrajectoryController;
+}
+
+namespace vel_fwd_controllers
+{
+  /**
+   * \brief Joint trajectory controller that represents trajectory segments as <b>quintic splines</b> and sends
+   * commands to a \b velocity interface.
+   */
+  typedef trajectory_interface::QuinticSplineSegment<double> SegmentImpl;
+  typedef typename joint_trajectory_controller::JointTrajectorySegment<SegmentImpl>::State State;
+  typedef VelocityForwardHardwareInterfaceAdapter<State> HwIfaceAdapter;
+  typedef joint_trajectory_controller::JointTrajectoryController<SegmentImpl, HwIfaceAdapter> JointTrajectoryController;
+}
+
+namespace vel_pid_controllers
+{
+  /**
+   * \brief Joint trajectory controller that represents trajectory segments as <b>quintic splines</b> and sends
+   * commands to a \b velocity interface.
+   */
+  typedef trajectory_interface::QuinticSplineSegment<double> SegmentImpl;
+  typedef typename joint_trajectory_controller::JointTrajectorySegment<SegmentImpl>::State State;
+  typedef VelocityPIDHardwareInterfaceAdapter<State> HwIfaceAdapter;
   typedef joint_trajectory_controller::JointTrajectoryController<SegmentImpl, HwIfaceAdapter> JointTrajectoryController;
 }
 
 PLUGINLIB_EXPORT_CLASS(position_controllers::JointTrajectoryController, controller_interface::ControllerBase)
 PLUGINLIB_EXPORT_CLASS(effort_controllers::JointTrajectoryController,   controller_interface::ControllerBase)
+PLUGINLIB_EXPORT_CLASS(vel_fwd_controllers::JointTrajectoryController, controller_interface::ControllerBase)
+PLUGINLIB_EXPORT_CLASS(vel_pid_controllers::JointTrajectoryController, controller_interface::ControllerBase)

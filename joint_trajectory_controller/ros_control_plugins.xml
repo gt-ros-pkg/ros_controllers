@@ -18,9 +18,6 @@
     </description>
   </class>
 
-</library>
-
-<library path="lib/libvel_fwd_joint_trajectory_controller">
   <class name="vel_fwd_controllers/JointTrajectoryController"
          type="vel_fwd_controllers::JointTrajectoryController"
          base_class_type="controller_interface::ControllerBase">
@@ -30,9 +27,7 @@
       forwarding interface.
     </description>
   </class>
-</library>
 
-<library path="lib/libvel_pid_joint_trajectory_controller">
   <class name="vel_pid_controllers/JointTrajectoryController"
          type="vel_pid_controllers::JointTrajectoryController"
          base_class_type="controller_interface::ControllerBase">
@@ -42,4 +37,5 @@
       pid loop interface.
     </description>
   </class>
+
 </library>

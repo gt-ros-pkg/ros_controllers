@@ -129,8 +129,8 @@ std::string getLeafNamespace(const ros::NodeHandle& nh)
 
 } // namespace
 
-template <class SegmentImpl, class HwIfaceAdapter>
-inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+inline void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 starting(const ros::Time& time)
 {
   // Update time data
@@ -149,23 +149,23 @@ starting(const ros::Time& time)
   hw_iface_adapter_.starting(time_data.uptime);
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+inline void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 stopping(const ros::Time& time)
 {
   preemptActiveGoal();
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+inline void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 trajectoryCommandCB(const JointTrajectoryConstPtr& msg)
 {
   const bool update_ok = updateTrajectoryCommand(msg, RealtimeGoalHandlePtr());
   if (update_ok) {preemptActiveGoal();}
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+inline void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 preemptActiveGoal()
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -179,8 +179,8 @@ preemptActiveGoal()
   }
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+inline void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 checkPathTolerances(const typename Segment::State& state_error,
                     const Segment&                 segment)
 {
@@ -195,8 +195,8 @@ checkPathTolerances(const typename Segment::State& state_error,
   }
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-inline void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+inline void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 checkGoalTolerances(const typename Segment::State& state_error,
                     const Segment&                 segment)
 {
@@ -233,17 +233,16 @@ checkGoalTolerances(const typename Segment::State& state_error,
   }
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
-JointTrajectoryController()
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
+JointTrajectoryControllerBase()
   : verbose_(false), // Set to true during debugging
     hold_trajectory_ptr_(new Trajectory)
 {}
 
-template <class SegmentImpl, class HwIfaceAdapter>
-bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::init(typename HwIfaceAdapter::HwIface* hw,
-                                                                     ros::NodeHandle&   root_nh,
-                                                                     ros::NodeHandle&   controller_nh)
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+bool JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
+initInternal(ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh)
 {
   using namespace internal;
 
@@ -290,20 +289,9 @@ bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::init(typename HwIfa
   if (urdf_joints.empty()) {return false;}
   assert(n_joints == urdf_joints.size());
 
-  // Initialize members
-  joints_.resize(n_joints);
   angle_wraparound_.resize(n_joints);
   for (unsigned int i = 0; i < n_joints; ++i)
   {
-    // Joint handle
-    try {joints_[i] = hw->getHandle(joint_names_[i]);}
-    catch (...)
-    {
-      ROS_ERROR_STREAM_NAMED(name_, "Could not find joint '" << joint_names_[i] << "' in '" <<
-                                    this->getHardwareInterfaceType() << "'.");
-      return false;
-    }
-
     // Whether a joint is continuous (ie. has angle wraparound)
     angle_wraparound_[i] = urdf_joints[i]->type == urdf::Joint::CONTINUOUS;
     const std::string not_if = angle_wraparound_[i] ? "" : "non-";
@@ -312,35 +300,26 @@ bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::init(typename HwIfa
                                   this->getHardwareInterfaceType() << "'.");
   }
 
-  assert(joints_.size() == angle_wraparound_.size());
-  ROS_DEBUG_STREAM_NAMED(name_, "Initialized controller '" << name_ << "' with:" <<
-                         "\n- Number of joints: " << joints_.size() <<
-                         "\n- Hardware interface type: '" << this->getHardwareInterfaceType() << "'" <<
-                         "\n- Trajectory segment type: '" << hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
-
   // Default tolerances
   ros::NodeHandle tol_nh(controller_nh_, "constraints");
   default_tolerances_ = getSegmentTolerances<Scalar>(tol_nh, joint_names_);
 
-  // Hardware interface adapter
-  hw_iface_adapter_.init(joints_, controller_nh_);
-
   // ROS API: Subscribed topics
-  trajectory_command_sub_ = controller_nh_.subscribe("command", 1, &JointTrajectoryController::trajectoryCommandCB, this);
+  trajectory_command_sub_ = controller_nh_.subscribe("command", 1, &JointTrajectoryControllerBase::trajectoryCommandCB, this);
 
   // ROS API: Published topics
   state_publisher_.reset(new StatePublisher(controller_nh_, "state", 1));
 
   // ROS API: Action interface
   action_server_.reset(new ActionServer(controller_nh_, "follow_joint_trajectory",
-                                        boost::bind(&JointTrajectoryController::goalCB,   this, _1),
-                                        boost::bind(&JointTrajectoryController::cancelCB, this, _1),
+                                        boost::bind(&JointTrajectoryControllerBase::goalCB,   this, _1),
+                                        boost::bind(&JointTrajectoryControllerBase::cancelCB, this, _1),
                                         false));
   action_server_->start();
 
   // ROS API: Provided services
   query_state_service_ = controller_nh_.advertiseService("query_state",
-                                                         &JointTrajectoryController::queryStateService,
+                                                         &JointTrajectoryControllerBase::queryStateService,
                                                          this);
 
   // Preeallocate resources
@@ -365,12 +344,11 @@ bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::init(typename HwIfa
     state_publisher_->msg_.error.velocities.resize(n_joints);
     state_publisher_->unlock();
   }
-
   return true;
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 update(const ros::Time& time, const ros::Duration& period)
 {
   // Get currently followed trajectory
@@ -404,10 +382,10 @@ update(const ros::Time& time, const ros::Duration& period)
   }
 
   // Update current state and state error
-  for (unsigned int i = 0; i < joints_.size(); ++i)
+  for (unsigned int i = 0; i < joint_states_.size(); ++i)
   {
-    current_state_.position[i] = joints_[i].getPosition();
-    current_state_.velocity[i] = joints_[i].getVelocity();
+    current_state_.position[i] = joint_states_[i].getPosition();
+    current_state_.velocity[i] = joint_states_[i].getVelocity();
     // There's no acceleration data available in a joint handle
 
     state_error_.position[i] = desired_state_.position[i] - current_state_.position[i];
@@ -445,8 +423,8 @@ update(const ros::Time& time, const ros::Duration& period)
   publishState(time_data.uptime);
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+bool JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePtr gh)
 {
   typedef InitJointTrajectoryOptions<Trajectory> Options;
@@ -522,8 +500,8 @@ updateTrajectoryCommand(const JointTrajectoryConstPtr& msg, RealtimeGoalHandlePt
   return true;
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 goalCB(GoalHandle gh)
 {
   ROS_DEBUG_STREAM_NAMED(name_,"Recieved new action goal");
@@ -578,8 +556,8 @@ goalCB(GoalHandle gh)
   }
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 cancelCB(GoalHandle gh)
 {
   RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
@@ -602,8 +580,8 @@ cancelCB(GoalHandle gh)
   }
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+bool JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
                   control_msgs::QueryTrajectoryState::Response& resp)
 {
@@ -641,8 +619,8 @@ queryStateService(control_msgs::QueryTrajectoryState::Request&  req,
   return true;
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 publishState(const ros::Time& time)
 {
   // Check if it's time to publish
@@ -666,8 +644,8 @@ publishState(const ros::Time& time)
   }
 }
 
-template <class SegmentImpl, class HwIfaceAdapter>
-void JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+template <class SegmentImpl, class HwIfaceAdapter, class Controller>
+void JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, Controller>::
 setHoldPosition(const ros::Time& time)
 {
   // Settle position in a fixed time. We do the following:
@@ -683,15 +661,15 @@ setHoldPosition(const ros::Time& time)
   const typename Segment::Time end_time_2x = time.toSec() + 2.0 * stop_trajectory_duration_;
 
   // Create segment that goes from current (pos,vel) to (pos,-vel)
-  const unsigned int n_joints = joints_.size();
+  const unsigned int n_joints = joint_states_.size();
   for (unsigned int i = 0; i < n_joints; ++i)
   {
-    hold_start_state_.position[i]     =  joints_[i].getPosition();
-    hold_start_state_.velocity[i]     =  joints_[i].getVelocity();
+    hold_start_state_.position[i]     =  joint_states_[i].getPosition();
+    hold_start_state_.velocity[i]     =  joint_states_[i].getVelocity();
     hold_start_state_.acceleration[i] =  0.0;
 
-    hold_end_state_.position[i]       =  joints_[i].getPosition();
-    hold_end_state_.velocity[i]       = -joints_[i].getVelocity();
+    hold_end_state_.position[i]       =  joint_states_[i].getPosition();
+    hold_end_state_.velocity[i]       = -joint_states_[i].getVelocity();
     hold_end_state_.acceleration[i]   =  0.0;
   }
   hold_trajectory_ptr_->front().init(start_time,  hold_start_state_,
@@ -705,6 +683,124 @@ setHoldPosition(const ros::Time& time)
                                      end_time,   hold_end_state_);
 
   curr_trajectory_box_.set(hold_trajectory_ptr_);
+}
+
+template <class SegmentImpl, class HwIfaceAdapter>
+JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::JointTrajectoryController()
+  : JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, 
+        controller_interface::Controller<typename HwIfaceAdapter::HwIface> > ()
+{
+}
+
+template <class SegmentImpl, class HwIfaceAdapter>
+bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
+init(HardwareInterface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh)
+{
+  if(!this->initInternal(root_nh, controller_nh))
+    return false;
+  const unsigned int n_joints = this->joint_names_.size();
+
+  // Initialize members
+  joints_.resize(n_joints);
+  this->joint_states_.resize(n_joints);
+  for (unsigned int i = 0; i < n_joints; ++i) {
+    // Joint handle
+    try {
+      joints_[i] = hw->getHandle(this->joint_names_[i]);
+      this->joint_states_[i] = static_cast<JointStateHandle>(joints_[i]);
+    }
+    catch (...) {
+      ROS_ERROR_STREAM_NAMED(this->name_, "Could not find joint '" << this->joint_names_[i] << 
+                             "' in '" << this->getHardwareInterfaceType() << "'.");
+      return false;
+    }
+  }
+
+  assert(joints_.size() == this->angle_wraparound_.size());
+  ROS_DEBUG_STREAM_NAMED(this->name_, "Initialized controller '" << this->name_ << "' with:" <<
+                         "\n- Number of joints: " << joints_.size() <<
+                         "\n- Hardware interface type: '" << this->getHardwareInterfaceType() << "'" <<
+                         "\n- Trajectory segment type: '" << hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
+
+  // Hardware interface adapter
+  this->hw_iface_adapter_.init(joints_, controller_nh);
+
+  return true;
+}
+
+template <class SegmentImpl, class HwIfaceAdapter>
+JointTrajectoryController2<SegmentImpl, HwIfaceAdapter>::JointTrajectoryController2()
+  : JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, 
+        controller_interface::Controller2<typename HwIfaceAdapter::HwIface1, 
+                                          typename HwIfaceAdapter::HwIface2> >()
+{
+}
+
+template <class SegmentImpl, class HwIfaceAdapter>
+bool JointTrajectoryController2<SegmentImpl, HwIfaceAdapter>::
+init(HardwareInterface1* hw1,
+     HardwareInterface2* hw2,
+     ros::NodeHandle&   root_nh,
+     ros::NodeHandle&   controller_nh)
+{
+  if(!this->initInternal(root_nh, controller_nh))
+    return false;
+  const unsigned int n_joints = this->joint_names_.size();
+
+  joint_interfaces_ = internal::getStrings(controller_nh, "interfaces");
+  if(joint_interfaces_.size() != this->joint_names_.size()) {
+    ROS_ERROR_STREAM_NAMED(this->name_, 
+        "The parameter '" << controller_nh.getNamespace() + "/interfaces" <<
+        "' must be set with a list of joint interfaces corresponding to each joint.");
+    return false;
+  }
+  std::vector<std::string> ctrl_interfaces = this->getHardwareInterfaceTypes();
+
+  // Initialize members
+  this->joint_states_.resize(n_joints);
+  for (unsigned int i = 0; i < n_joints; ++i) {
+    std::string interface = joint_interfaces_[i];
+    int iface_ind = std::find(ctrl_interfaces.begin(), ctrl_interfaces.end(), interface) - 
+                    ctrl_interfaces.begin();
+    if(iface_ind == ctrl_interfaces.size()) {
+      ROS_ERROR_STREAM_NAMED(this->name_, 
+          "Could not find interface named '" << interface <<
+          "'. Available interfaces: " << 
+          "'" << ctrl_interfaces[0] << "', " <<
+          "'" << ctrl_interfaces[1] << "'");
+      return false;
+    }
+    try {
+      switch(iface_ind) {
+        case 0:
+          joints1_.push_back(hw1->getHandle(this->joint_names_[i]));
+          this->joint_states_[i] = static_cast<JointStateHandle>(joints1_[i]);
+          break;
+        case 1:
+          joints2_.push_back(hw2->getHandle(this->joint_names_[i]));
+          this->joint_states_[i] = static_cast<JointStateHandle>(joints2_[i]);
+          break;
+      }
+    }
+    catch (...) {
+      ROS_ERROR_STREAM_NAMED(this->name_, "Could not find joint '" << this->joint_names_[i] << 
+                             "' in '" << ctrl_interfaces[iface_ind] << "'.");
+      return false;
+    }
+  }
+
+  assert(joints1_.size() + joints2_.size() == this->angle_wraparound_.size());
+  ROS_DEBUG_STREAM_NAMED(this->name_, "Initialized controller '" << this->name_ << "' with:" <<
+                         "\n- Number of joints: " << joints1_.size() + joints2_.size() <<
+                         "\n- Hardware interface types: " <<
+                         "'" << ctrl_interfaces[0] << "', " <<
+                         "'" << ctrl_interfaces[1] << "'" <<
+                         "\n- Trajectory segment type: '" << hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
+
+  // Hardware interface adapter
+  this->hw_iface_adapter_.init(joints1_, joints2_, controller_nh);
+
+  return true;
 }
 
 } // namespace

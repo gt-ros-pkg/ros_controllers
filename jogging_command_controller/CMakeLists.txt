@@ -103,14 +103,6 @@ add_library(jogging_command_controller
   src/jogging_command_controller.cpp
 )
 
-add_library(vel_pid_jogging_cmd_ctrl
-  src/vel_pid_jogging_cmd_ctrl.cpp
-)
-
-add_library(vel_fwd_jogging_cmd_ctrl
-  src/vel_fwd_jogging_cmd_ctrl.cpp
-)
-
 target_link_libraries(jogging_command_controller
   ${catkin_LIBRARIES}
 )
