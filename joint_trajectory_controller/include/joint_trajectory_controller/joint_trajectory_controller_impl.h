@@ -686,54 +686,24 @@ setHoldPosition(const ros::Time& time)
 }
 
 template <class SegmentImpl, class HwIfaceAdapter>
-JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::JointTrajectoryController()
-  : JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, 
-        controller_interface::Controller<typename HwIfaceAdapter::HwIface> > ()
-{
-}
-
-template <class SegmentImpl, class HwIfaceAdapter>
 bool JointTrajectoryController<SegmentImpl, HwIfaceAdapter>::
 init(HardwareInterface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh)
 {
   if(!this->initInternal(root_nh, controller_nh))
     return false;
-  const unsigned int n_joints = this->joint_names_.size();
 
-  // Initialize members
-  joints_.resize(n_joints);
-  this->joint_states_.resize(n_joints);
-  for (unsigned int i = 0; i < n_joints; ++i) {
-    // Joint handle
-    try {
-      joints_[i] = hw->getHandle(this->joint_names_[i]);
-      this->joint_states_[i] = static_cast<JointStateHandle>(joints_[i]);
-    }
-    catch (...) {
-      ROS_ERROR_STREAM_NAMED(this->name_, "Could not find joint '" << this->joint_names_[i] << 
-                             "' in '" << this->getHardwareInterfaceType() << "'.");
+  if(!this->hw_iface_adapter_.initJoints(this->name_, this->joint_names_, hw, 
+                                         controller_nh, this->joint_states_))
       return false;
-    }
-  }
 
-  assert(joints_.size() == this->angle_wraparound_.size());
+  assert(this->joint_states_.size() == this->angle_wraparound_.size());
   ROS_DEBUG_STREAM_NAMED(this->name_, "Initialized controller '" << this->name_ << "' with:" <<
-                         "\n- Number of joints: " << joints_.size() <<
+                         "\n- Number of joints: " << this->joint_states_.size() <<
                          "\n- Hardware interface type: '" << this->getHardwareInterfaceType() << "'" <<
-                         "\n- Trajectory segment type: '" << hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
-
-  // Hardware interface adapter
-  this->hw_iface_adapter_.init(joints_, controller_nh);
+                         "\n- Trajectory segment type: '" << 
+                         hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
 
   return true;
-}
-
-template <class SegmentImpl, class HwIfaceAdapter>
-JointTrajectoryController2<SegmentImpl, HwIfaceAdapter>::JointTrajectoryController2()
-  : JointTrajectoryControllerBase<SegmentImpl, HwIfaceAdapter, 
-        controller_interface::Controller2<typename HwIfaceAdapter::HwIface1, 
-                                          typename HwIfaceAdapter::HwIface2> >()
-{
 }
 
 template <class SegmentImpl, class HwIfaceAdapter>
@@ -745,60 +715,19 @@ init(HardwareInterface1* hw1,
 {
   if(!this->initInternal(root_nh, controller_nh))
     return false;
-  const unsigned int n_joints = this->joint_names_.size();
 
-  joint_interfaces_ = internal::getStrings(controller_nh, "interfaces");
-  if(joint_interfaces_.size() != this->joint_names_.size()) {
-    ROS_ERROR_STREAM_NAMED(this->name_, 
-        "The parameter '" << controller_nh.getNamespace() + "/interfaces" <<
-        "' must be set with a list of joint interfaces corresponding to each joint.");
-    return false;
-  }
-  std::vector<std::string> ctrl_interfaces = this->getHardwareInterfaceTypes();
-
-  // Initialize members
-  this->joint_states_.resize(n_joints);
-  for (unsigned int i = 0; i < n_joints; ++i) {
-    std::string interface = joint_interfaces_[i];
-    int iface_ind = std::find(ctrl_interfaces.begin(), ctrl_interfaces.end(), interface) - 
-                    ctrl_interfaces.begin();
-    if(iface_ind == ctrl_interfaces.size()) {
-      ROS_ERROR_STREAM_NAMED(this->name_, 
-          "Could not find interface named '" << interface <<
-          "'. Available interfaces: " << 
-          "'" << ctrl_interfaces[0] << "', " <<
-          "'" << ctrl_interfaces[1] << "'");
+  if(!this->hw_iface_adapter_.initJoints(this->name_, this->joint_names_, hw1, hw2,
+                                         controller_nh, this->joint_states_))
       return false;
-    }
-    try {
-      switch(iface_ind) {
-        case 0:
-          joints1_.push_back(hw1->getHandle(this->joint_names_[i]));
-          this->joint_states_[i] = static_cast<JointStateHandle>(joints1_[i]);
-          break;
-        case 1:
-          joints2_.push_back(hw2->getHandle(this->joint_names_[i]));
-          this->joint_states_[i] = static_cast<JointStateHandle>(joints2_[i]);
-          break;
-      }
-    }
-    catch (...) {
-      ROS_ERROR_STREAM_NAMED(this->name_, "Could not find joint '" << this->joint_names_[i] << 
-                             "' in '" << ctrl_interfaces[iface_ind] << "'.");
-      return false;
-    }
-  }
 
-  assert(joints1_.size() + joints2_.size() == this->angle_wraparound_.size());
+  assert(this->joint_states_.size() == this->angle_wraparound_.size());
+  std::vector<std::string> hw_iface_types = this->getHardwareInterfaceTypes();
   ROS_DEBUG_STREAM_NAMED(this->name_, "Initialized controller '" << this->name_ << "' with:" <<
-                         "\n- Number of joints: " << joints1_.size() + joints2_.size() <<
-                         "\n- Hardware interface types: " <<
-                         "'" << ctrl_interfaces[0] << "', " <<
-                         "'" << ctrl_interfaces[1] << "'" <<
-                         "\n- Trajectory segment type: '" << hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
-
-  // Hardware interface adapter
-  this->hw_iface_adapter_.init(joints1_, joints2_, controller_nh);
+                         "\n- Number of joints: " << this->joint_states_.size() <<
+                         "\n- Hardware interface types: '" << hw_iface_types[0] << 
+                         "', " << hw_iface_types[1] << "'" <<
+                         "\n- Trajectory segment type: '" << 
+                         hardware_interface::internal::demangledTypeName<SegmentImpl>() << "'");
 
   return true;
 }

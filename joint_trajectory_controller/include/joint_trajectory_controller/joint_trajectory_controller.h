@@ -274,12 +274,8 @@ class JointTrajectoryController
 {
 public:
   typedef typename HwIfaceAdapter::HwIface HardwareInterface;
-  typedef typename HardwareInterface::ResourceHandleType JointHandle;
 
-  JointTrajectoryController();
   bool init(HardwareInterface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
-protected:
-  std::vector<JointHandle> joints_;
 };
 
 template <class SegmentImpl, class HwIfaceAdapter>
@@ -291,16 +287,9 @@ class JointTrajectoryController2
 public:
   typedef typename HwIfaceAdapter::HwIface1 HardwareInterface1;
   typedef typename HwIfaceAdapter::HwIface2 HardwareInterface2;
-  typedef typename HardwareInterface1::ResourceHandleType JointHandle1;
-  typedef typename HardwareInterface2::ResourceHandleType JointHandle2;
 
-  JointTrajectoryController2();
   bool init(HardwareInterface1* hw1, HardwareInterface2* hw2, 
             ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
-protected:
-  std::vector<std::string> joint_interfaces_;
-  std::vector<JointHandle1> joints1_;
-  std::vector<JointHandle2> joints2_;
 };
 
 } // namespace

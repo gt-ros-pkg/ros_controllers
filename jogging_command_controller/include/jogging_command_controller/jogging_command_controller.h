@@ -164,7 +164,7 @@ initInternal(ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
     jogging_acceleration_[i] = default_acceleration;
     joint_nh.getParam("acceleration", jogging_acceleration_[i]);
     if(jogging_acceleration_[i] <= 0.0) {
-      ROS_DEBUG_STREAM_NAMED(name_, "Must provide positive acceleration for joint " 
+      ROS_ERROR_STREAM_NAMED(name_, "Must provide positive acceleration for joint " 
                                         << joint_names_[i] << ".");
       return false;
     }
@@ -387,19 +387,9 @@ class JoggingCommandController
 {
 public:
   typedef typename HwIfaceAdapter::HwIface HardwareInterface;
-  typedef typename HardwareInterface::ResourceHandleType JointHandle;
 
-  JoggingCommandController();
   bool init(HardwareInterface* hw, ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
-protected:
-  std::vector<JointHandle> joints_;
 };
-
-template <class State, class HwIfaceAdapter>
-JoggingCommandController<State, HwIfaceAdapter>::
-JoggingCommandController()
-{
-}
 
 template <class State, class HwIfaceAdapter>
 bool JoggingCommandController<State, HwIfaceAdapter>::
@@ -407,24 +397,11 @@ init(HardwareInterface* hw, ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
 {
   if(!this->initInternal(root_nh, ctrl_nh))
     return false;
-  const unsigned int n_joints = this->joint_names_.size();
-  
-  joints_.resize(n_joints);
-  this->joint_states_.resize(n_joints);
-  for (unsigned int i = 0; i < n_joints; ++i) {
-    // Joint handle
-    try {
-      joints_[i] = hw->getHandle(this->joint_names_[i]);
-      this->joint_states_[i] = static_cast<hardware_interface::JointStateHandle>(joints_[i]);
-    }
-    catch (...) {
-      ROS_ERROR_STREAM_NAMED(this->name_, "Could not find joint '" << this->joint_names_[i] << 
-                             "' in '" << this->getHardwareInterfaceType() << "'.");
+
+  if(!this->hw_iface_adapter_.initJoints(this->name_, this->joint_names_, hw, 
+                                         ctrl_nh, this->joint_states_))
       return false;
-    }
-  }
-  // Hardware interface adapter
-  this->hw_iface_adapter_.init(this->joints_, ctrl_nh);
+
   return true;
 }
 
@@ -437,23 +414,10 @@ class JoggingCommandController2
 public:
   typedef typename HwIfaceAdapter::HwIface1 HardwareInterface1;
   typedef typename HwIfaceAdapter::HwIface2 HardwareInterface2;
-  typedef typename HardwareInterface1::ResourceHandleType JointHandle1;
-  typedef typename HardwareInterface2::ResourceHandleType JointHandle2;
 
-  JoggingCommandController2();
   bool init(HardwareInterface1* hw1, HardwareInterface2* hw2, 
             ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
-protected:
-  std::vector<std::string> joint_interfaces_;
-  std::vector<JointHandle1> joints1_;
-  std::vector<JointHandle2> joints2_;
 };
-
-template <class State, class HwIfaceAdapter>
-JoggingCommandController2<State, HwIfaceAdapter>::
-JoggingCommandController2()
-{
-}
 
 template <class State, class HwIfaceAdapter>
 bool JoggingCommandController2<State, HwIfaceAdapter>::
@@ -462,60 +426,10 @@ init(HardwareInterface1* hw1, HardwareInterface2* hw2,
 {
   if(!this->initInternal(root_nh, controller_nh))
     return false;
-  const unsigned int n_joints = this->joint_names_.size();
 
-  joint_interfaces_ = getStrings(controller_nh, "interfaces");
-  if(joint_interfaces_.size() != this->joint_names_.size()) {
-    ROS_ERROR_STREAM_NAMED(this->name_, 
-        "The parameter '" << controller_nh.getNamespace() + "/interfaces" <<
-        "' must be set with a list of joint interfaces corresponding to each joint.");
-    return false;
-  }
-  std::vector<std::string> ctrl_interfaces = this->getHardwareInterfaceTypes();
-
-  // Initialize members
-  this->joint_states_.resize(n_joints);
-  for (unsigned int i = 0; i < n_joints; ++i) {
-    std::string interface = joint_interfaces_[i];
-    int iface_ind = std::find(ctrl_interfaces.begin(), ctrl_interfaces.end(), interface) - 
-                    ctrl_interfaces.begin();
-    if(iface_ind == ctrl_interfaces.size()) {
-      ROS_ERROR_STREAM_NAMED(this->name_, 
-          "Could not find interface named '" << interface <<
-          "'. Available interfaces: " << 
-          "'" << ctrl_interfaces[0] << "', " <<
-          "'" << ctrl_interfaces[1] << "'");
+  if(!this->hw_iface_adapter_.initJoints(this->name_, this->joint_names_, hw1, hw2,
+                                         controller_nh, this->joint_states_))
       return false;
-    }
-    try {
-      switch(iface_ind) {
-        case 0:
-          joints1_.push_back(hw1->getHandle(this->joint_names_[i]));
-          this->joint_states_[i] = static_cast<JointStateHandle>(joints1_[i]);
-          break;
-        case 1:
-          joints2_.push_back(hw2->getHandle(this->joint_names_[i]));
-          this->joint_states_[i] = static_cast<JointStateHandle>(joints2_[i]);
-          break;
-      }
-    }
-    catch (...) {
-      ROS_ERROR_STREAM_NAMED(this->name_, "Could not find joint '" << this->joint_names_[i] << 
-                             "' in '" << ctrl_interfaces[iface_ind] << "'.");
-      return false;
-    }
-  }
-
-  assert(joints1_.size() + joints2_.size() == this->angle_wraparound_.size());
-  ROS_DEBUG_STREAM_NAMED(this->name_, "Initialized controller '" << this->name_ << "' with:" <<
-                         "\n- Number of joints: " << joints1_.size() + joints2_.size() <<
-                         "\n- Hardware interface types: " <<
-                         "'" << ctrl_interfaces[0] << "', " <<
-                         "'" << ctrl_interfaces[1] << "'" <<
-                         "\n- State type: '" << hardware_interface::internal::demangledTypeName<State>() << "'");
-
-  // Hardware interface adapter
-  this->hw_iface_adapter_.init(joints1_, joints2_, controller_nh);
 
   return true;
 }
