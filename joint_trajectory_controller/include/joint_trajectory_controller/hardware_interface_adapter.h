@@ -88,10 +88,10 @@ std::vector<std::string> getStrings(const ros::NodeHandle& nh, const std::string
 /**
  * \brief Helper class to simplify integrating the JointTrajectoryController with different hardware interfaces.
  *
- * The JointTrajectoryController outputs position, velocity, command triplets, while the more common hardware interfaces
- * it is supposed to work with accept either position or effort commands.
+ * The JointTrajectoryController outputs position, velocity and acceleration command triplets, while the more common hardware
+ * interfaces accept position, velocity or effort commands.
  *
- * Use one of the avaialble template specializations of this class (or create your own) to adapt the
+ * Use one of the available template specializations of this class (or create your own) to adapt the
  * JointTrajectoryController to a specidfic hardware interface.
  */
 template <class State>
@@ -336,6 +336,23 @@ public:
 
 /**
  * \brief Adapter for a position-controlled hardware interface. Forwards desired positions as commands.
+ *
+ * The following is an example configuration of a controller that uses this adapter.
+ * \code
+ * head_controller:
+ *   type: "position_controllers/JointTrajectoryController"
+ *   joints:
+ *     - head_1_joint
+ *     - head_2_joint
+ *   
+ *   constraints:
+ *     goal_time: 0.6
+ *     stopped_velocity_tolerance: 0.02
+ *     head_1_joint: {trajectory: 0.05, goal: 0.02}
+ *     head_2_joint: {trajectory: 0.05, goal: 0.02}
+ *   stop_trajectory_duration: 0.5
+ *   state_publish_rate:  25
+ * \endcode
  */
 template <class State>
 class PositionHardwareInterfaceAdapter 
@@ -367,23 +384,20 @@ public:
  * The following is an example configuration of a controller that uses this adapter. Notice the \p gains entry:
  * \code
  * head_controller:
- *   type: "position_controllers/JointTrajectoryController"
+ *   type: "effort_controllers/JointTrajectoryController"
  *   joints:
  *     - head_1_joint
  *     - head_2_joint
- *
- *   constraints:
- *     goal_time: 0.6
- *     stopped_velocity_tolerance: 0.02
- *     head_1_joint:
- *       trajectory: 0.05
- *       goal: 0.02
- *     head_2_joint:
- *       goal: 0.01
- *
  *   gains:
  *     head_1_joint: {p: 200, d: 1, i: 5, i_clamp: 1}
  *     head_2_joint: {p: 200, d: 1, i: 5, i_clamp: 1}
+ *   constraints:
+ *     goal_time: 0.6
+ *     stopped_velocity_tolerance: 0.02
+ *     head_1_joint: {trajectory: 0.05, goal: 0.02}
+ *     head_2_joint: {trajectory: 0.05, goal: 0.02}
+ *   stop_trajectory_duration: 0.5
+ *   state_publish_rate:  25
  * \endcode
  */
 template <class State>
