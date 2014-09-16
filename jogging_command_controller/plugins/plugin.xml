@@ -6,7 +6,7 @@
     </description>
     <qtgui>
       <label>Jogging Control</label>
-      <icon type="file">images/ur_icon.png</icon>
+      <icon type="file">images/jogging_icon.png</icon>
       <statustip>Move joints at constant speed</statustip>
     </qtgui>
   </class>
