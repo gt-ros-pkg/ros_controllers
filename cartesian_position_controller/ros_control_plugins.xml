@@ -1,0 +1,52 @@
+<library path="lib/libcartesian_position_controller">
+
+  <class name="position_controllers/CartesianPositionController"
+         type="position_controllers::CartesianPositionController"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      The CartesianPositionController allows individual joints to be jogged at specified velocities,
+      following a trapezoidal trajectory.
+      This variant uses a position control interface.
+    </description>
+  </class>
+
+  <class name="effort_controllers/CartesianPositionController"
+         type="effort_controllers::CartesianPositionController"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      The CartesianPositionController allows individual joints to be jogged at specified velocities,
+      following a trapezoidal trajectory.
+      This variant uses a effort control interface.
+    </description>
+  </class>
+
+  <class name="pva_fwd_controllers/CartesianPositionController"
+         type="pva_fwd_controllers::CartesianPositionController"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      The CartesianPositionController allows individual joints to be jogged at specified velocities,
+      following a trapezoidal trajectory.
+      This variant uses a position-velocity-acceleration forwarding control interface.
+    </description>
+  </class>
+
+  <class name="vel_fwd_controllers/CartesianPositionController"
+         type="vel_fwd_controllers::CartesianPositionController"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      The CartesianPositionController allows individual joints to be jogged at specified velocities,
+      following a trapezoidal trajectory.
+      This variant uses a velocity forwarding control interface.
+    </description>
+  </class>
+
+  <class name="vel_pid_controllers/CartesianPositionController"
+         type="vel_pid_controllers::CartesianPositionController"
+         base_class_type="controller_interface::ControllerBase">
+    <description>
+      The CartesianPositionController allows individual joints to be jogged at specified velocities,
+      following a trapezoidal trajectory.
+      This variant uses a velocity PID control interface.
+    </description>
+  </class>
+</library>
