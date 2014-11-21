@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   hardware_interface
   joint_trajectory_controller
   kdl_parser
+  interactive_markers
 )
 
 ## System dependencies are found with CMake's conventions

@@ -87,6 +87,8 @@ initInternal(ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
   ctrl_nh.getParam("max_velocity", default_max_velocity);
   double default_max_acceleration = 1e9;
   ctrl_nh.getParam("max_acceleration", default_max_acceleration);
+  qd_abs_maxs_.resize(num_jnts);
+  qdd_abs_maxs_.resize(num_jnts);
   for (unsigned int i = 0; i < num_jnts; ++i) {
     qd_abs_maxs_[i] = default_max_velocity;
     qdd_abs_maxs_[i] = default_max_acceleration;
@@ -139,6 +141,10 @@ initInternal(ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
     weights_sub_ = ctrl_nh.subscribe<std_msgs::Float64MultiArray>("weights", 1,
         boost::bind(&CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>::setWeights, 
                     this, _1));
+  }
+  else {
+    ROS_ERROR_NAMED(name_, "Incorrect solver type '%s'", solver_type.c_str());
+    return false;
   }
   return true;
 }
