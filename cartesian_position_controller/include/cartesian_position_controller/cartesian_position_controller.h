@@ -79,6 +79,9 @@ public:
   bool initInternal(ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh);
   void starting(const ros::Time& time);
   void update(const ros::Time& time, const ros::Duration& period);
+  void stopping(const ros::Time& time);
+
+  typedef realtime_tools::RealtimePublisher<geometry_msgs::PoseStamped> PoseStampedPublisher;
 
 protected:
   // void commandCB(int joint_index, const std_msgs::Float64::ConstPtr& cmd);
@@ -151,10 +154,15 @@ protected:
     lin_fwd_vel_ = tf::Vector3(msg->twist.linear.x, msg->twist.linear.y, msg->twist.linear.z);
     ang_fwd_vel_ = tf::Vector3(msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z);
   }
+
+  void publishState(const ros::Time& time);
   
   ros::NodeHandle ctrl_nh_;
   std::string name_;
   boost::mutex mutex_lock_;
+
+  ros::Duration state_publisher_period_;
+  ros::Time last_state_publish_time_;
 
   HwIfaceAdapter hw_iface_adapter_;   ///< Adapts desired state to HW interface.
 
@@ -202,6 +210,8 @@ protected:
   ros::Subscriber weights_sub_;
   ros::Subscriber weight_js_sub_;
   ros::Subscriber weight_ts_sub_;
+
+  boost::shared_ptr<PoseStampedPublisher> cur_pose_publisher_;
 };
 
 template <class State, class HwIfaceAdapter>

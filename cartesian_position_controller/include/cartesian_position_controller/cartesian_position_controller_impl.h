@@ -14,6 +14,12 @@ initInternal(ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
   // Controller name
   name_ = getLeafNamespace(ctrl_nh_);
 
+  // State publish rate
+  double state_publish_rate = 50.0;
+  ctrl_nh.getParam("state_publish_rate", state_publish_rate);
+  ROS_DEBUG_STREAM_NAMED(name_, "Controller state will be published at " << state_publish_rate << "Hz.");
+  state_publisher_period_ = ros::Duration(1.0 / state_publish_rate);
+
   // List of controlled joints
   joint_names_ = getParamList<std::string>(XmlRpcValue::TypeString, ctrl_nh, "joints");
   if (joint_names_.empty()) {
@@ -98,6 +104,8 @@ initInternal(ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
     joint_nh.getParam("max_acceleration", qdd_abs_maxs_[i]);
   }
 
+  cur_pose_publisher_.reset(new PoseStampedPublisher(ctrl_nh, "cur_pose", 1));
+
   command_pose_sub_ = ctrl_nh.subscribe<geometry_msgs::PoseStamped>("command_pose", 1,
       boost::bind(&CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>::commandPose,
                   this, _1));
@@ -154,6 +162,10 @@ void CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>::
 starting(const ros::Time& time)
 {
   first_update_ = true;
+
+  // Initialize last state update time
+  last_state_publish_time_ = time;
+
   // Hardware interface adapter
   hw_iface_adapter_.starting(time);
 }
@@ -265,6 +277,55 @@ update(const ros::Time& time, const ros::Duration& period)
 
   // Hardware interface adapter: Generate and send commands
   hw_iface_adapter_.updateCommand(time, period, desired_state_, state_error_);
+
+  // Publish state
+  publishState(time);
+}
+
+template <class State, class HwIfaceAdapter, class Controller>
+void CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>::
+publishState(const ros::Time& time)
+{
+  // Check if it's time to publish
+  if (!state_publisher_period_.isZero() && last_state_publish_time_ + state_publisher_period_ < time)
+  {
+    if (cur_pose_publisher_ && cur_pose_publisher_->trylock())
+    {
+      last_state_publish_time_ += state_publisher_period_;
+
+      cur_pose_publisher_->msg_.header.stamp = time;
+      cur_pose_publisher_->msg_.pose.position.x = x_cur_.p.x();
+      cur_pose_publisher_->msg_.pose.position.y = x_cur_.p.y();
+      cur_pose_publisher_->msg_.pose.position.z = x_cur_.p.z();
+      x_cur_.M.GetQuaternion(
+        cur_pose_publisher_->msg_.pose.orientation.x,
+        cur_pose_publisher_->msg_.pose.orientation.y,
+        cur_pose_publisher_->msg_.pose.orientation.z,
+        cur_pose_publisher_->msg_.pose.orientation.w);
+
+      cur_pose_publisher_->unlockAndPublish();
+    }
+  }
+}
+
+template <class State, class HwIfaceAdapter, class Controller>
+void CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>::
+stopping(const ros::Time& time)
+{
+  int num_jnts = kdl_chain_.getNrOfJoints();
+
+  for(int i = 0; i < num_jnts; ++i) {
+    desired_state_.position[i] = jnt_states_cur_.q(i);
+    desired_state_.velocity[i] = 0.0;
+    desired_state_.acceleration[i] = 0.0;
+
+    state_error_.position[i] = 0.0;
+    state_error_.velocity[i] = 0.0;
+    state_error_.acceleration[i] = 0.0;
+  }
+
+  // Hardware interface adapter: Generate and send commands
+  hw_iface_adapter_.updateCommand(time, ros::Duration(), desired_state_, state_error_);
 }
 
 }
