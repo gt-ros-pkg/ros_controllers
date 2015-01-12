@@ -112,6 +112,12 @@ initInternal(ros::NodeHandle &root_nh, ros::NodeHandle &ctrl_nh)
   command_twist_sub_ = ctrl_nh.subscribe<geometry_msgs::TwistStamped>("command_twist", 1,
       boost::bind(&CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>::commandTwist,
                   this, _1));
+  p_gains_sub_ = ctrl_nh.subscribe<geometry_msgs::TwistStamped>("set_p_gains", 1,
+      boost::bind(&CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>
+                  ::setProportionalGains, this, _1));
+  p_maxs_sub_ = ctrl_nh.subscribe<geometry_msgs::TwistStamped>("set_p_maxs", 1,
+      boost::bind(&CartesianPositionControllerBase<State, HwIfaceAdapter, Controller>
+                  ::setPropotionalMaxs, this, _1));
 
   // get inverse velocity solver parameters
   ros::NodeHandle ik_solver_vel_nh(ctrl_nh, "ik_solver_vel");

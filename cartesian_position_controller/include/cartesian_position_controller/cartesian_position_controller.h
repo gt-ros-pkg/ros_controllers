@@ -155,6 +155,18 @@ protected:
     ang_fwd_vel_ = tf::Vector3(msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z);
   }
 
+  void setProportionalGains(const geometry_msgs::TwistStamped::ConstPtr& msg)
+  {
+    linear_cmd_gains_ = tf::Vector3(msg->twist.linear.x, msg->twist.linear.y, msg->twist.linear.z);
+    angle_cmd_gains_ = tf::Vector3(msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z);
+  }
+
+  void setPropotionalMaxs(const geometry_msgs::TwistStamped::ConstPtr& msg)
+  {
+    linear_cmd_maxs_ = tf::Vector3(msg->twist.linear.x, msg->twist.linear.y, msg->twist.linear.z);
+    angle_cmd_maxs_ = tf::Vector3(msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z);
+  }
+
   void publishState(const ros::Time& time);
   
   ros::NodeHandle ctrl_nh_;
@@ -204,6 +216,8 @@ protected:
   // controller command subscribers
   ros::Subscriber command_pose_sub_;
   ros::Subscriber command_twist_sub_;
+  ros::Subscriber p_gains_sub_;
+  ros::Subscriber p_maxs_sub_;
 
   // IK solver parameter subscribers
   ros::Subscriber opt_pos_sub_;
